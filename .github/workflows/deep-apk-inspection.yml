@@ -24,7 +24,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y binutils file
           mkdir -p /tmp/dls-native
-          unzip -j Dream-League-v4-162.1.apk 'lib/*/*.so' -d /tmp/dls-native
+          unzip -oj Dream-League-v4-162.1.apk 'lib/*/*.so' -d /tmp/dls-native
           {
             echo
             echo "=== file(1) ==="
