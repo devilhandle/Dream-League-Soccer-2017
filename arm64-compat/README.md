@@ -1,26 +1,26 @@
-# Dream League Soccer 2017 — ARM64 compatibility investigation
+# ARM64 compatibility investigation
 
-This directory tracks the investigation for running the repository's APK on 64-bit-only Android devices using an approach inspired by [Shadowgun Bridge](https://github.com/JamesCrumble/shadowgun-bridge).
+The repository contains an APK binary, not the game's original engine/game source project. The first inspection workflow found these packaged native libraries:
 
-## Current status
+- `lib/armeabi-v7a/libDLS17.so`
+- `lib/armeabi-v7a/libadcolony.so`
+- `lib/armeabi-v7a/libjs.so`
+- `lib/x86/libDLS17.so`
+- `lib/x86/libadcolony.so`
+- `lib/x86/libjs.so`
 
-- The repository contains the APK binary, not the game's source project.
-- Renaming or copying `lib/armeabi-v7a` into `lib/arm64-v8a` does **not** convert ARM32 machine code to ARM64.
-- A genuine native ARM64 port normally requires compatible ARM64 versions of every native dependency and, for game-engine code, the appropriate engine/build sources.
-- A compatibility-layer approach is a different project: it must emulate/load the 32-bit code and bridge Android/JNI, graphics, audio, and input APIs. Success cannot be assumed from APK metadata alone.
+There are no packaged `arm64-v8a` libraries in that listing, and the quick filename scan did not find conventional `libunity.so` or `libil2cpp.so` names. This is not enough to identify the engine or prove how `libDLS17.so` is structured; the ELF and dependency report is the next evidence-gathering step.
 
-## First milestone: inspect, don't patch blindly
+## Work completed
 
-Run the GitHub Actions workflow **Analyze APK native ABIs** from the Actions tab. It produces an artifact named `dls-apk-abi-report` listing native library paths and relevant Unity/IL2CPP filenames found in the APK.
+1. Added a CI workflow to inventory native library paths.
+2. Added a read-only Python inspector that reports ELF class and machine type.
+3. Added a deeper workflow to collect ELF headers, dynamic dependencies and JNI exports.
 
-Use that report to establish the actual ABI and native-library layout before deciding whether the Shadowgun Bridge architecture is reusable. The report is an inspection result only; it is not a converted APK.
+## Why this is not a simple ARM64 rebuild
 
-## Acceptance criteria for a later compatibility build
+The packaged libraries are 32-bit ARM and 32-bit x86 variants, not AArch64 binaries. Renaming a library or placing it under `lib/arm64-v8a` does not translate machine code. A native ARM64 port generally needs compatible AArch64 libraries and suitable source/build inputs. A Shadowgun-Bridge-style route is instead a separate compatibility runtime: the exact DLS library's ABI, imports, JNI behavior, graphics API, audio path and startup flow must be checked against the bridge before adapting anything.
 
-1. Identify all native libraries, engine/runtime versions, and required packaged assets.
-2. Map the target APK's dependencies against the bridge's implemented loader, JNI shims, graphics translation, audio, and input support.
-3. Implement only evidence-backed compatibility changes; keep original APK assets intact.
-4. Build a separately signed test APK and test launch, menus, rendering, audio, and gameplay on a 64-bit-only Android environment.
-5. Publish an APK only after a reproducible build and runtime tests pass.
+## Next engineering gate
 
-No converted APK is produced by the analysis workflow.
+Review the `dls-elf-inspection` artifact. Only after checking the actual ELF headers, `DT_NEEDED` entries, exports and manifest should we choose between a native port (if source/dependencies exist) and a compatibility runtime. This workflow does not modify the APK and does not claim to produce a working converted APK.
