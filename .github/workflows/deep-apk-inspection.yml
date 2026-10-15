@@ -1,0 +1,53 @@
+name: Deep APK ABI and ELF inspection
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "Dream-League-v4-162.1.apk"
+      - "arm64-compat/inspect_apk.py"
+      - ".github/workflows/deep-apk-inspection.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect APK and ELF architecture
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 arm64-compat/inspect_apk.py Dream-League-v4-162.1.apk | tee arm64-compat/elf-report.txt
+          sudo apt-get update
+          sudo apt-get install -y binutils file
+          mkdir -p /tmp/dls-native
+          unzip -o Dream-League-v4-162.1.apk 'lib/*/*.so' -d /tmp/dls-native
+          {
+            echo
+            echo "=== file(1), all ABIs ==="
+            find /tmp/dls-native -type f -name '*.so' -print0 | sort -z | xargs -0 file
+            while IFS= read -r -d '' lib; do
+              rel="${lib#/tmp/dls-native/}"
+              echo
+              echo "=== ELF header: $rel ==="
+              readelf -h "$lib" || true
+              echo
+              echo "=== Dynamic dependencies: $rel ==="
+              readelf -d "$lib" 2>/dev/null | grep -E 'NEEDED|SONAME' || true
+              echo
+              echo "=== JNI exports: $rel ==="
+              nm -D --defined-only "$lib" 2>/dev/null | grep -E 'JNI_OnLoad|Java_' | head -100 || true
+              echo
+              echo "=== Undefined native imports (sample): $rel ==="
+              nm -D --undefined-only "$lib" 2>/dev/null | head -80 || true
+            done < <(find /tmp/dls-native -type f -name '*.so' -print0 | sort -z)
+          } | tee -a arm64-compat/elf-report.txt
+      - name: Upload ELF report
+        uses: actions/upload-artifact@v4
+        with:
+          name: dls-elf-inspection
+          path: arm64-compat/elf-report.txt
+          if-no-files-found: error

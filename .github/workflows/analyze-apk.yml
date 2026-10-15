@@ -1,0 +1,49 @@
+name: Analyze APK native ABIs
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "Dream-League-v4-162.1.apk"
+      - ".github/workflows/analyze-apk.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Inspect APK contents and native libraries
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk="Dream-League-v4-162.1.apk"
+          test -f "$apk"
+          report="abi-report.txt"
+          {
+            echo "APK: $apk"
+            echo "Size: $(stat -c '%s bytes' "$apk")"
+            echo
+            echo "Native library paths:"
+            unzip -Z1 "$apk" | grep -E '^lib/[^/]+/[^/]+\.so$' || true
+            echo
+            echo "All ABI directory names:"
+            unzip -Z1 "$apk" | awk -F/ '$1 == "lib" && NF >= 3 { print $2 }' | sort -u || true
+            echo
+            echo "Manifest presence:"
+            unzip -Z1 "$apk" | grep -E '^AndroidManifest\.xml$' || true
+            echo
+            echo "Unity/IL2CPP-related filenames (if present):"
+            unzip -Z1 "$apk" | grep -Ei '(^|/)(libunity|libil2cpp|libmain|global-metadata\.dat|UnityPlayer)' || true
+          } | tee "$report"
+
+      - name: Upload ABI inspection report
+        uses: actions/upload-artifact@v4
+        with:
+          name: dls-apk-abi-report
+          path: abi-report.txt
+          if-no-files-found: error
