@@ -3,7 +3,7 @@
 This directory contains a small **arm64-v8a diagnostic JNI library**, not a
 finished ARM32 compatibility runtime.
 
-## What the APK inspection found
+## APK inspection findings
 
 The supplied Dream League Soccer 2017 APK packages these native libraries
 under `lib/armeabi-v7a/` and `lib/x86/`:
@@ -15,38 +15,22 @@ under `lib/armeabi-v7a/` and `lib/x86/`:
 The ARM library was inspected as ELF32 / ARM. The APK has no
 `lib/arm64-v8a/` directory.
 
-## Build integration
+## Build the diagnostic library
 
-Add this directory's `src/main/cpp/CMakeLists.txt` as the CMake project for
-an Android library module and configure the NDK ABI filter to
-`arm64-v8a`. The module must also use the Java source at
-`src/main/java/org/dls17/compat/CompatProbe.java`.
+The standalone Android Gradle project is in this `android/` directory.
+With Android SDK, NDK, CMake, and a compatible Gradle installation configured:
 
-Example module settings:
-
-```gradle
-android {
-    defaultConfig {
-        ndk {
-            abiFilters 'arm64-v8a'
-        }
-        externalNativeBuild {
-            cmake {
-                cppFlags '-std=c++17'
-            }
-        }
-    }
-    externalNativeBuild {
-        cmake {
-            path 'src/main/cpp/CMakeLists.txt'
-        }
-    }
-}
+```sh
+cd android
+gradle :compat:assembleRelease
 ```
 
-Call `CompatProbe.nativeStatus()` from the host app to display the current
-diagnostic status. This library itself can be built for ARM64, but it does
-**not** make the original 32-bit game runnable.
+The module is deliberately configured with `abiFilters 'arm64-v8a'`. The
+resulting AArch64 JNI library is a diagnostic shim; it does not load or run
+the game's ARM32 `.so` files. From a host app in the same package, call
+`CompatProbe.nativeStatus()` to retrieve the current status. If integrating
+into another app, include the Java class and the native library in that app
+and adapt the JNI package/signature as needed.
 
 ## Work still required for real compatibility
 
